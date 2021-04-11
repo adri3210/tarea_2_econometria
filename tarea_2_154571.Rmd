@@ -1,0 +1,22 @@
+---
+title: "tarea_2_154571"
+author: "Adrián Javier Martínez Rodríguez"
+date: "4/11/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+# Global options
+knitr::opts_chunk$set(echo = FALSE)
+
+# Libraries
+library(data.table)
+library(tidyverse)
+```
+
+## Tarea 2
+
+```{r}
+
+```
+
