@@ -3,6 +3,9 @@ title: "tarea_2_154571"
 author: "Adrián Javier Martínez Rodríguez"
 date: "4/11/2021"
 output: pdf_document
+header-includes :
+  \usepackage{booktabs}
+
 ---
 
 ```{r setup, include=FALSE}
@@ -12,11 +15,59 @@ knitr::opts_chunk$set(echo = FALSE)
 # Libraries
 library(data.table)
 library(tidyverse)
+library(AER)
+library(fixest)
+library(knitr)
+setwd("/Users/adrian_martinez/Dropbox/Maestría/Maestría Clases/Segundo_Semestre/econometria/tarea_2_econometria")
 ```
 
 ## Tarea 2
 
-```{r}
+```{r read}
+data <- fread("./pums80.csv")
+```
 
+### Pregunta 1
+```{r mco}
+mco <- feols(data = data, weeksm1 ~ kidcount + agem1 + agefstm + black + hispan +
+                  othrace)
+```
+
+
+```{r iv_samesex}
+iv_samesex <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace | 
+                      kidcount ~ samesex, data =  data)
+```
+
+```{r iv_twoboys}
+# Generate variabl twoboys
+data <- data %>% 
+  mutate(twoboys = if_else(boy1st == 1 & boy2nd == 1, 1, 0))
+
+iv_twoboys <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace | 
+                      kidcount ~ twoboys, data =  data)
+```
+
+```{r iv_twogirls}
+# Generate variable twogirls
+data <- data %>% 
+  mutate(twogirls = if_else(boy1st == 0 & boy2nd == 0, 1, 0))
+
+iv_twogirls <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace | 
+                      kidcount ~ twogirls, data =  data)
+```
+
+
+```{r iv_multi2nd}
+iv_multi2nd <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace | 
+                      kidcount ~ multi2nd, data =  data)
+```
+
+
+```{r tabla_1, results = "asis"}
+# Table with First stage statistic
+etable(mco, iv_samesex, iv_twoboys, iv_twogirls, iv_multi2nd, tex = T,
+       fitstat = ~ . + ivf1, extraline = list("_Ivs" = c("", "samesex", "twoboys",
+                                                       "twogirls", "multi2nd")))
 ```
 
