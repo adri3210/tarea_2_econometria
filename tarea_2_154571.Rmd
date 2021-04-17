@@ -1,5 +1,5 @@
 ---
-title: "tarea_2_154571"
+title: "Tarea 2"
 author: "Adrián Javier Martínez Rodríguez"
 date: "4/11/2021"
 output: pdf_document
@@ -18,6 +18,8 @@ library(tidyverse)
 library(AER)
 library(fixest)
 library(knitr)
+library(RCT)
+
 setwd("/Users/adrian_martinez/Dropbox/Maestría/Maestría Clases/Segundo_Semestre/econometria/tarea_2_econometria")
 ```
 
@@ -30,13 +32,14 @@ data <- fread("./pums80.csv")
 ### Pregunta 1
 ```{r mco}
 mco <- feols(data = data, weeksm1 ~ kidcount + agem1 + agefstm + black + hispan +
-                  othrace)
+                  othrace, se = "hetero")
 ```
 
 
 ```{r iv_samesex}
 iv_samesex <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace | 
-                      kidcount ~ samesex, data =  data)
+                      kidcount ~ samesex, data =  data,
+                    se = "hetero")
 ```
 
 ```{r iv_twoboys}
@@ -45,7 +48,8 @@ data <- data %>%
   mutate(twoboys = if_else(boy1st == 1 & boy2nd == 1, 1, 0))
 
 iv_twoboys <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace | 
-                      kidcount ~ twoboys, data =  data)
+                      kidcount ~ twoboys, data =  data,
+                    se = "hetero")
 ```
 
 ```{r iv_twogirls}
@@ -54,13 +58,15 @@ data <- data %>%
   mutate(twogirls = if_else(boy1st == 0 & boy2nd == 0, 1, 0))
 
 iv_twogirls <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace | 
-                      kidcount ~ twogirls, data =  data)
+                      kidcount ~ twogirls, data =  data,
+                     se = "hetero")
 ```
 
 
 ```{r iv_multi2nd}
 iv_multi2nd <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace | 
-                      kidcount ~ multi2nd, data =  data)
+                      kidcount ~ multi2nd, data =  data,
+                     se = "hetero")
 ```
 
 
@@ -68,6 +74,366 @@ iv_multi2nd <- feols(weeksm1 ~ agem1 + agefstm + black + hispan + othrace |
 # Table with First stage statistic
 etable(mco, iv_samesex, iv_twoboys, iv_twogirls, iv_multi2nd, tex = T,
        fitstat = ~ . + ivf1, extraline = list("_Ivs" = c("", "samesex", "twoboys",
-                                                       "twogirls", "multi2nd")))
+                                                       "twogirls", "multi2nd")),
+       title = "Tabla 1")
 ```
 
+
+### Pregunta 2
+
+Podemos observar en la tabla 1 que los coeficientes de kidcount son significativos al 10, 5 y 1% tanto para la estimación por MCO y por 2sls. 
+
+Para el coeficiente estimado en la columna 1, que una madre tenga un hijo más, ceteris paribus, está relacionado con una caída de 5.53 en el número de semanas que la madre trabajó en 1979. 
+
+Para el coeficiente de la segunda columna, que una madre tenga un hijo más, ceteris paribus, está asociado a una disminución de -4.43 en el número de semanas que la madre trabajó en el año de 1979. 
+
+La media de semanas trabajadas en 1979 por las madres es de 19.018. Por lo tanto, los efectos mencionados en los dos párrafos anteriores implicarían que la madre trabaja menos en un 29% y 23% de la media, lo cual es una disminución significativa. 
+
+### Pregunta 3
+
+Para que un instrumento sea de utilidad para una estimación, necesitamos que éste esté altamente correlacionado con nuestra variable explicativa. Para verificar la relevancia de nuestro instrumento, podemos estimar la siguiente ecuación
+$$
+\text{kidcount}_i = \beta_0 + \gamma \times \text{samesex} + \beta \mathbf{X}_i 
+$$
+donde samesex es nuestro instrumento y $\mathbf{X}$ contiene los controles (variables exógenas). Para verificar que nuestro instrumento sea relevante necesitamos que nuestra estimación nos arroje que el coeficiente $\gamma$ es significativo. De hecho, la regla dice que necesitamos un estadistico F mayor a 10, lo cual es aproximadamente igual, en el caso de un solo instrumento, a un estadistico t de 3.2. 
+
+
+```{r}
+modelo_relevancia <- feols(data = data, 
+                           kidcount ~ samesex + agem1 + agefstm + black + 
+                             hispan + othrace)
+```
+
+El estadistico t encontrado haciendo la regresión mencionada es igual a 29.467, el cual es considerablemente mayor que el valor mínimo necesario de 3.2.
+
+La relevancia del instrumento es intuitiva. Una familia cuyos dos primeros hijos son del mismo sexo pueden inclinarse a tener otro hijo para poder tener un hijo con el sexo que hace falta.
+
+### Pregunta 4
+
+Además del supuesto de relevancia, el instrumento debe cumplir con el supuesto de exogeneidad/exclusión, es decir, que el instrumento no esté correlacionado con la variable dependiente, weeksm1, de manera directa (solo através de kidcount). 
+
+```{r, results = "asis"}
+data %>% select(samesex, agem1, agefstm, black, othrace) %>%
+  balance_table(., "samesex") %>%
+  kable(., caption = "Tabla de Balance", col.names = c("Variables", 
+                                                       "Samesex = 0",
+                                                       "Samesex = 1",
+                                                       "Valor-p"))
+```
+
+El supuesto de exogeneidad no se puede demostrar pero sí se pede dar una intuición. En primer lugar, el sexo del hijo es aleatorio, por lo tanto, es muy difícil pensar con qué variable omitida se puede correlacionar. 
+
+Una forma de analizar si el instrumento está correlacionado con alguna caracteristica no observable es por medio de una tabla de balance. Al observar la tabla, podemos ver que la media entre los grupos que tienen samesex == 1 y samesex == 0 son iguales estadisticamente hablando. Esto es, las madres que tienen sus primeros dos hijos con el mismo sexo y las que no, no tienen, en promedio, características distintas. Esto nos puede dar indicios de que tal vez no hay no observables correlacionados con z, aunque, repito, esto no se puede demostrar. 
+
+### Pregunta 5
+
+Para hacer la estimación del coeficiente de kidcount por medio de la forma reducida y de la primera etapa.
+
+La forma reducida es
+$$
+\text{weeksm1}_i = \gamma_0 + \gamma_1 \text{samesex}_i + \eta \mathbf{X}_i + \tau_i
+$$
+
+donde $\mathbf{X}$ son los controles agem1, agefstm, black, hispan y othrace. 
+
+```{r}
+reducida <- feols(data = data, 
+                       weeksm1 ~ agem1 + agefstm + black + hispan + othrace + samesex)
+```
+
+El coeficiente que nos importa de la regresión es $\gamma_1$. El valor de $\gamma_1$ es `r reducida$coefficients["samesex"]`. 
+
+La primera etapa es
+$$
+\text{kidcount}_i = \beta_0 + \gamma \times \text{samesex} + \beta \mathbf{X}_i + \theta_i
+$$
+
+```{r}
+primera_etapa = feols(data = data,
+                      kidcount ~ samesex + agem1 + agefstm + 
+                        black + hispan + othrace)
+```
+
+
+El coeficiente de interés de esta regresión es $\gamma$. El valor de $\gamma$ es `r primera_etapa$coefficients["samesex"]`. 
+
+Para obtener el mismo coeficiente de kidcount que se obtuvo en la pregunta 1 cuando se utiliza como instrumento samesex, se tiene que hacer lo siguiente
+$$
+\alpha = \gamma_1 / \gamma
+$$
+
+```{r}
+alpha <- reducida$coefficients["samesex"]/primera_etapa$coefficients["samesex"]
+```
+
+
+El valor de alpha es igual a `r alpha` (encontramos el mismo coeficiente estimado en la pregunta número 1 columna 2).
+
+### Pregunta 6
+
+(a)
+
+En las columnas 3, 4 y 5 se pueden observar los resultados de las estimaciones de 2SLS utilizando como instrumentos las variables twoboys, twogirls y multi2nd. Los coeficientes estimados implican que, ceteris paribus, el número de semanas que una madre trabajó en 1979 disminuye en 7.96, 2.61 y 3.26 cuando los instrumentos son twoboys, twogirls y multi2nd respectivamente. El signo del efecto es consistente con lo encontrado en el modelo de la columna 2. Sin embargo, las magnitudes difieren mucho dependiendo del instrumento utilizado. Esto se debe a los diferentes mecanismos por los cuales el instrumento afecta a kidcount. Por ejemplo, tal vez las familias tienen una preferencia por hijos varones. De hecho, si checamos los resultados de las primeras etapas, que los dos primeros hijos sean mujeres tiene un efecto en magnitud más grande (0.077) sobre kidcount que cuando se utiliza que los dos primeros hijos sean hombres (0.037). Por lo tanto, como los diferentes instrumentos afectan a la variable de interés por medio de distintos mecanismos es de esperar que los coeficientes obtenidos para kidcount sean distintos dependiendo del instrumento, pues el origen de la variación es distinta. 
+
+(b)
+
+Cuando el IV es samesex, un individuo es complier si al tener hijos del mismo sexo decide tener un hijo más. Cuando el IV es twoboys, un individuo es complier si decide tener otro hijo más cuando sus dos primeros hijos fueron varones. Cuando el IV es twogirls, un individuo es complier cuando decide tener otro hijo dado que sus dos primeros hijos fueron mujeres. Por último, cuando el IV es multi2nd, un individuo es complier si tiene más hijos dado que el segundo parto fue multiple.   
+
+(c)
+
+La variable morekids nos indica si la madre tuvo más de dos hijos. Por lo tanto, podemos decir que una mujer toma el tratamiento si morekids es igual a 1. Por ejemplo, si samesex = 1, entonces la mujer va a tener más hijos y morekids sería igual a 1 (en el caso de que sea una complier). 
+
+Para poder calcular las proporción de compliers necesitamos asumir que no existen defiers en nuestra muestra. Para calcular la proporción podemos hacer la siguiente regresión
+
+$$
+P(morekids = 1 | samesex) = \beta_0 + \beta_1 samesex + u_i
+$$
+
+Entonces, si samesex == 0, 
+$$
+P(morekids = 1 | samsex = 0) = \beta_0 = P(always) + P(defier)
+$$
+Si samesex == 1,
+$$
+P(morekids = 1 | samsex = 1) = \beta_0 + \beta_1 = P(always) + P(complier)
+$$
+
+Por último, la probabilidad/proporción de never es igual a
+$$
+P(Never) = 1 - P(always) - P(defier) - P(complier)
+$$
+
+Notemos que tenemos un sistema con 3 ecuaciones, pero 4 incognitas (no tiene solución). Si asumimos que no hay defiers en nuestra muestra, entonces $P(defier) = 0$ y nuestro sistema se puede identificar. 
+
+Además, al asumir que no existen defiers, podemos identificar la proporción de compliers con la regresión anterior, pues el cambio entre $P(morekids = 1 | samesex = 1)$ y $P(morekids = 1 | samesex = 0)$ se debe SOLO a los compliers, pues los always taker siempre escogen "tratarse". 
+
+```{r}
+samesex_complier <- lm(data = data,
+                       morekids ~ samesex)
+samesex_p_complier <- samesex_complier$coefficients[2]
+samesex_p_always <- samesex_complier$coefficients["(Intercept)"]
+samesex_p_never <- 1 - samesex_p_complier - samesex_p_always
+samesex <- c(samesex_p_complier, samesex_p_always, samesex_p_never)
+
+####
+twoboys_complier <- lm(data = data,
+                       morekids ~ twoboys)
+
+twoboys_p_complier <- twoboys_complier$coefficients[2]
+twoboys_p_always <- twoboys_complier$coefficients["(Intercept)"]
+twoboys_p_never <- 1 - twoboys_p_complier - twoboys_p_always
+twoboys <- c(twoboys_p_complier, twoboys_p_always, twoboys_p_never)
+
+####
+twogirls_complier <- lm(data = data,
+                       morekids ~ twogirls)
+
+twogirls_p_complier <- twogirls_complier$coefficients[2]
+twogirls_p_always <- twogirls_complier$coefficients["(Intercept)"]
+twogirls_p_never <- 1 - twogirls_p_complier - twogirls_p_always
+twogirls <- c(twogirls_p_complier, twogirls_p_always, twogirls_p_never)
+
+###
+multi2nd_complier <- lm(data = data,
+                       morekids ~ multi2nd)
+
+multi2nd_p_complier <- multi2nd_complier$coefficients[2]
+multi2nd_p_always <- multi2nd_complier$coefficients["(Intercept)"]
+multi2nd_p_never <- 1 - multi2nd_p_complier - multi2nd_p_always
+multi2nd <- c(twogirls_p_complier, twogirls_p_always, twogirls_p_never)
+
+tabla_probs <- data.frame("samesex" = samesex, "twoboys" = twoboys, 
+                             "twogirls" = twogirls, "multi2nd" = multi2nd)
+rownames(tabla_probs) <- c("P(Complier)", "P(Always)", "P(Never)")
+```
+
+```{r, results = "asis"}
+kable(tabla_probs, row.names = T, caption = "Probabilidades" )
+```
+
+(d)
+
+En el podcast de "Do Baby Girls Cause Divorce?" mencionan que las familias tienen una preferencia por hijos varón. Entonces, podemos pensar que una familia cuyos dos primeros hijos son mujeres, va a querer tener un hijo más para conseguir un varón. 
+
+Para probar la hipótesis del podcast podemos basarnos en la tabla de probabilidades donde se utiliza como instrumento a twoboys y twogirls. Ahí podemos observar que cuando los dos primeros hijos son mujeres, hay una mayor proporción de complier que cuando los dos primeros hijos son hombres. Esto significa que una mayor cantidad de familias deciden tener otro hijo cuando sus primeros hijos son mujeres que cuando sus primeros hijos son hombres, lo cual puede ser una señal de preferencias por hijos varones. 
+
+### Pregunta 7
+
+(a)
+
+Al comparar el resultado de la tabla 2 columna 1 con los resultados de la tabla 1 columna 3 y 4, podemos observar que el resultado utilizando dos instrumentos (-4.018) se encuentra entre los resultados estimados utilizando un solo instrumento (-2.61 y -7.96). Esto es intuitivo, pues al incorporar las variaciones de dos instrumentos, podemos pensar que las predicciones de la primera etapa para kidcount van a ser una combinación de las predicciones de kidcount con tan solo un instrumento. 
+
+(b)
+
+Los resultados de la tabla 2 columna 2 y 3 son muy similares, -3.554 y -3.502 respectivamente. La única diferencia es que en la estimación de la columna 3 no se incorporaron controles. Al no incorporar los controles, éstos se adieren a la parte de no observables. Por lo tanto, que las magnitudes de los efectos no sean muy distintos (practicamente son iguales) se debe a la exogeneidad de kidcount causada por los instrumentos. Como los padres no pueden elegir el sexo o si el embarazo es de mellizos, es muy poco probable que haya una correlación con los controles que genere un sesgo en el coeficiente y, por ende, resultados diferentes entre las especificaciones de la columna 2 y 3. 
+
+
+```{r}
+iv_twoboys_twogirls <- feols(data = data, weeksm1 ~ agem1 + agefstm +
+                               black + hispan + othrace | 
+                               kidcount ~ twoboys + twogirls,
+                             se = "hetero")
+
+iv_samesex_multi2nd <- feols(data = data, weeksm1 ~ agem1 + agefstm +
+                               black + hispan + othrace | 
+                               kidcount ~ samesex + multi2nd,
+                             se = "hetero")
+
+iv_samesex_multi2nd_nocontrol <- feols(data = data, weeksm1 ~ 1| 
+                               kidcount ~ samesex + multi2nd,
+                               se = "hetero")
+```
+
+```{r, results = "hide"}
+etable(iv_twoboys_twogirls, iv_samesex_multi2nd, iv_samesex_multi2nd_nocontrol, fitstat = ~ . + ivf1, extraline = list("_Método" = c("2SLS", "2SLS", "2SLS"),
+                                              "_IVs" = c("twoboys", "samesex",
+                                                         "samesex"),
+                                              "_" = c("twogirls", "multi2nd",
+                                                      "multi2nd")), tex = T,
+       title = "Tabla 2")
+```
+
+\begin{table}[htbp]
+\centering
+\caption{Tabla 2}
+\begin{tabular}{lccccc}
+\tabularnewline\midrule\midrule
+Dependent Variable:&\multicolumn{5}{c}{weeksm1}\\
+Model:&(1) & (2) & (3) & (4) & (5)\\
+\midrule \emph{Variables}&   &   &  \\
+kidcount&-4.018$^{***}$ & -3.554$^{***}$ & -3.502$^{***}$ & -3.44$^{***}$ & -3.536$^{***}$\\
+  &(0.9506) & (0.4734) & (0.4972) & (0.469) & (0.473)\\
+\midrule \emph{Fit statistics}&  & & & &\\
+Observations & 254,654&254,654&254,654& 254,654& 254,654\\
+F-test (1st stage) & 464.10&1,776.7&1,563.1 & &\\
+\midrule
+Método & 2SLS & 2SLS & 2SLS & GMM & GMM \\
+Controles & Sí & Sí & No & Sí & Sí \\
+IVs & twoboys & samesex & samesex & twoboys & samsex \\
+ & twogirls & multi2nd & multi2nd & twogirls &multi2nd\\
+ & & & & multi2nd & \\
+\midrule\midrule\multicolumn{6}{l}{\emph{Heterocedastic standard-errors in parentheses}}\\
+\multicolumn{6}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+\end{tabular}
+\end{table}
+
+### Pregunta 8
+
+```{r}
+# Programas basados en el libro de Christopher P. Adams
+# 
+f_gmm <- function(G, K){
+  G <- as.matrix(G)
+  N <- dim(G)[2]
+  if (K == dim(G)[1]) {
+    g <- rowMeans(G, na.rm = T)
+    W <- try(solve(G %*% t(G) / N), silent = T)
+    if (is.matrix(W)) {
+      return(t(g) %*% W %*% g)
+    }
+    
+    else {
+      return(t(g) %*% g)
+    }
+  }
+  else {
+    return("Error: incorrect dimension")
+  }
+}
+
+f_iv_gmm_2 <- function(beta, y, X, Z) {
+  y <- as.matrix(y)
+  X <- as.matrix(cbind(1, X))
+  Z <- as.matrix(Z) # matriz de instrumentos
+  g1 <- Z[, 1] * (y - X %*% beta)
+  g2 <- Z[, 2] * (y - X %*% beta)
+  return(f_gmm(t(cbind(g1, g2)), K = 2))
+}
+
+f_iv_gmm_3 <- function(beta, y, X, Z) {
+  y <- as.matrix(y)
+  X <- as.matrix(cbind(1, X))
+  Z <- as.matrix(Z) # matriz de instrumentos
+  g1 <- Z[, 1] * (y - X %*% beta)
+  g2 <- Z[, 2] * (y - X %*% beta)
+  g3 <- Z[, 3] * (y - X %*% beta)
+  return(f_gmm(t(cbind(g1, g2, g3)), K = 3))
+}
+```
+
+```{r, results = "hide"}
+y <- data$weeksm1 # Especificar mi variable dependiente
+X <- cbind(data$kidcount, data$agem1, data$agefstm, data$black, data$hispan,
+           data$othrace) # mis controles
+# Para dos instrumentos
+a <- optim(par = mco$coefficients, fn = f_iv_gmm_2, y = y, X = X,
+           Z = cbind(data$samesex, data$multi2nd))
+(a$par)
+
+# Para 3 instrumentos
+b <- optim(par = mco$coefficients, fn = f_iv_gmm_3, y = y, X = X,
+           Z = cbind(data$twoboys, data$twogirls, data$multi2nd))
+(b$par)
+
+# Los resultados que se muestran en la tabla 2 para GMM fueron estimados en Stata. 
+
+# gmm(weeksm1 ~ agem1 + agefstm + black +
+#       hispan + othrace + kidcount, ~ agem1 + agefstm + black +
+#       hispan + othrace  + twoboys + multi2nd + twogirls, data = data)
+
+```
+
+Para la estimación de GMM se utilizó Stata.
+
+(a)
+
+Los resultados de ambas estimaciones por GMM son muy parecidas tanto en magnitud como en errores estándar. Sin embargo, los errores estándar obtenidos en la columna 4 son menores, por lo cual, por términos de eficiencia, podríamos decir que la estimación de la columna 4 es el mejor. 
+
+(b)
+
+Al comparar los resultados por GMM y por 2SLS encontramos que los coeficientes son casi similares al igual que los errores estándar. Esto se debe a que 2SlS es una estimación particular del método GMM. De hecho, podemos obtener los mismos coeficientes si en lugar de usar una matriz de pesos ajustada (para el GMM) utilizamos una no ajustada. Además, las pequeñas diferencias que podamos encontrar pueden deberse a que GMM resuelve de manera númerica las ecuaciones de momentos, mientras que 2SLS asume que las ecuaciones de los momentos se cumplen y con base en eso obtiene los estimadores. 
+
+
+### Pregunta 9
+
+Con base en el resultado de la tabla 1, escogí repetir la estimación para la variable workedm utilizando como instrumento la variable multi2nd, que fue el instrumento con el estadístico F más grande de la tabla 1 y tabla 2. 
+
+```{r}
+modelo_9 <- feols(workedm ~ agem1 + agefstm + black + 
+                    hispan + othrace | 
+                      kidcount ~ multi2nd, data =  data, se = "hetero")
+```
+
+Los resultados de la estimación los podemos encontrar en la tabla 3 columna 1. La variable workedm es una dummy que tiene un valor igual a 1 si la madre tuvo un trabajo con paga en el año de 1979. Un incremento de una unidad en kidcount, ceteris paribus, está relacionado con una disminución de 6.8 puntos porcentuales en la probabilidad de que la madre trabaje a cambio de un salario.
+
+### Pregunta 10
+
+```{r}
+modelo_10 <- data %>%
+  filter(workedm == 1) %>% 
+  feols(incomem ~ agem1 + agefstm + black + 
+                    hispan + othrace | 
+                      kidcount ~ multi2nd, data =  .,
+        se = "hetero")
+```
+
+Para esta pregunta se corrio una regresión de dos etapas utilizando como variable instrumental multi2nd y solo para las madres que reportan trabajar. Los resultados se encuentran en la columna 2 de la tabla 3. Los resultados nos indican que, ceteris paribus, un incremento en el número de hijos en una unidad reduce en 788 dólares el salario laboral semanal de la madre. El salario semanal promedio de las madres que trabajan es igual a 11,791, lo que implicaría que el efecto de tener un hijo más es aproximadamente un 7% del promedio. 
+
+### Pregunta 11
+
+```{r}
+modelo_11 <- feols(weeksm1 ~ agem1 + agefstm + hispan |
+                     kidcount + kidcount:hispan ~ multi2nd + multi2nd:hispan,
+                   data = data,
+                   se = "hetero")
+```
+
+En la columna 3 podemos observar las estimaciones donde se incluye una interacción entre kidcount y hispan. Los instrumentos utilizados fueron multi2nd y multi2nd*hispan. Tal y como se ha encontrado a lo largo de la tarea, tener un hijo disminuye, ceteris paribus, el número de semanas que las madres trabajan. Ahora, el coeficiente de la interacción entre kidcount y hispan nos dice la diferencia del efecto de kidcount sobre madres hispanas y de otras razas. El cambio en el número de semanas para una madre hispana cuando se incrementa en uno el número de sus hijos es igual a -4.187, mientras que el cambio en el número de semanas para una madre no hispana ante un incrmento de 1 en el número de hijos es de -3.009. La diferencia entre ambos efectos es igual al coeficiente de la interacción (-1.178). Por lo tanto, tener un hijo más tiene un mayor efecto sobre el número de semanas trabajadas para las madres hispanas. Sin embargo, este coeficiente no es significativo, por lo cual, la diferencia no es estadisticamente distinta a 0. 
+
+
+```{r, results = "asis"}
+etable(modelo_9, modelo_10, modelo_11, tex = T, title = "Tabla 3", 
+       extraline = list("_Método" = c("2SLS", "2SLS", "2SLS"), 
+                        "_IV" = c("multi2nd", "multi2nd", "multi2nd"),
+                        "_" = c("", "", "multi2nd*hispan")), fitstat = ~n + ivf1)
+```
