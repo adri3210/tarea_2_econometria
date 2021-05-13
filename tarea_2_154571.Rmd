@@ -240,7 +240,7 @@ multi2nd_complier <- lm(data = data,
 multi2nd_p_complier <- multi2nd_complier$coefficients[2]
 multi2nd_p_always <- multi2nd_complier$coefficients["(Intercept)"]
 multi2nd_p_never <- 1 - multi2nd_p_complier - multi2nd_p_always
-multi2nd <- c(twogirls_p_complier, twogirls_p_always, twogirls_p_never)
+multi2nd <- c(multi2nd_p_complier, multi2nd_p_always, multi2nd_p_never)
 
 tabla_probs <- data.frame("samesex" = samesex, "twoboys" = twoboys, 
                              "twogirls" = twogirls, "multi2nd" = multi2nd)

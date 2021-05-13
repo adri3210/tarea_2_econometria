@@ -14,3 +14,5 @@ ivregress gmm weeksm1 agem1 agefstm black hispan othrace ///
 	
 ivregress gmm weeksm1 agem1 agefstm black hispan othrace ///
 	(kidcount = samesex multi2nd), wmatrix(unadjusted)
+
+* prueba
